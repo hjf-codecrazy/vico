@@ -203,8 +203,11 @@ protected constructor(
         val nextX = labelValues.getOrNull(index + 1) ?: (fullXRange.endInclusive.doubled - x)
         val horizontalPosition =
           when {
-            shiftExtremeLabels && index == 0 -> Position.Horizontal.End
-            shiftExtremeLabels && index == labelValues.lastIndex -> Position.Horizontal.Start
+            // Only shift an extreme label inward when it actually sits at the chart's x-bound;
+            // an interior first/last label (e.g. the data extends past it) stays centered.
+            shiftExtremeLabels && index == 0 && x <= ranges.minX -> Position.Horizontal.End
+            shiftExtremeLabels && index == labelValues.lastIndex && x >= ranges.maxX ->
+              Position.Horizontal.Start
             else -> Position.Horizontal.Center
           }
         val maxWidth =
