@@ -575,7 +575,10 @@ protected constructor(
     layerDimensions: MutableCartesianLayerDimensions,
   ) {
     val label = label ?: return
-    if (itemPlacer.getShiftExtremeLabels(context)) return
+    // NB: previously this returned early when getShiftExtremeLabels() was true, making extreme-label
+    // shifting and getFirst/LastLabelValue padding mutually exclusive. They can now coexist: a placer
+    // may shift one extreme inward (e.g. the first label, to pin it to the axis) while reserving
+    // padding for the other (e.g. the last label, to keep it centred on its tick yet untruncated).
     val ranges = context.ranges
     val maxLabelWidth =
       context.getMaxLabelWidth(layerDimensions, context.internalGetFullXRange(layerDimensions))
@@ -821,7 +824,8 @@ protected constructor(
 
     /**
      * If the [HorizontalAxis] is to reserve room for the first label, returns the first label’s _x_
-     * value. Otherwise, returns `null`. This is ignored if [getShiftExtremeLabels] returns `true`.
+     * value. Otherwise, returns `null`. This is honored independently of [getShiftExtremeLabels], so
+     * an extreme may be shifted on one side while padding is reserved on the other.
      */
     public fun getFirstLabelValue(
       context: CartesianMeasuringContext,
@@ -830,7 +834,8 @@ protected constructor(
 
     /**
      * If the [HorizontalAxis] is to reserve room for the last label, returns the last label’s _x_
-     * value. Otherwise, returns `null`. This is ignored if [getShiftExtremeLabels] returns `true`.
+     * value. Otherwise, returns `null`. This is honored independently of [getShiftExtremeLabels], so
+     * an extreme may be shifted on one side while padding is reserved on the other.
      */
     public fun getLastLabelValue(
       context: CartesianMeasuringContext,
@@ -886,8 +891,10 @@ protected constructor(
     /**
      * Returns whether the first and last labels should be shifted inward (end-aligned and
      * start-aligned, respectively) rather than centered. This anchors the outermost labels to the
-     * plot-area edges, preventing clipping without shrinking the plot area. If `true`,
-     * [getFirstLabelValue] and [getLastLabelValue] are ignored.
+     * plot-area edges, preventing clipping without shrinking the plot area. This is independent of
+     * [getFirstLabelValue]/[getLastLabelValue]: an extreme that is actually at the _x_ bound gets
+     * shifted, while a placer may still reserve padding via those functions for an extreme that
+     * stays centered (e.g. a last tick that sits inside the range).
      */
     public fun getShiftExtremeLabels(context: CartesianMeasuringContext): Boolean = false
 
