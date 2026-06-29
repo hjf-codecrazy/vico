@@ -613,7 +613,7 @@ protected constructor(
           value = lastLabelValue,
           verticalAxisPosition = null,
         )
-      var unscalableEndPadding =
+      val halfLabelWidth =
         label
           .getWidth(
             context = context,
@@ -622,10 +622,18 @@ protected constructor(
             pad = true,
           )
           .half
+      var unscalableEndPadding = halfLabelWidth
       if (!context.zoomEnabled) {
         unscalableEndPadding -=
           ((ranges.maxX - lastLabelValue) * layerDimensions.xSpacing).toFloat()
       }
+      // A centred extreme label's maxWidth is a mirrored gap (2 × distance to the plot edge), so
+      // reserving exactly half the label width makes maxWidth == the label's own width; sub-pixel
+      // rounding then truncates it with an ellipsis on narrow plots. When we are actually reserving
+      // (positive padding, i.e. a narrow plot), add a small safety margin so maxWidth ends up
+      // strictly greater than the text width. On wide plots the padding is non-positive and ignored,
+      // so no extra space is added.
+      if (unscalableEndPadding > 0f) unscalableEndPadding += halfLabelWidth * 0.1f
       layerDimensions.ensureValuesAtLeast(unscalableEndPadding = unscalableEndPadding)
     }
   }
