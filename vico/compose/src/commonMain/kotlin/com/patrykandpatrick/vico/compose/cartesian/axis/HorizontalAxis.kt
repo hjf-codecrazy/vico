@@ -192,6 +192,10 @@ protected constructor(
       val labelValues = itemPlacer.getLabelValues(this, visibleXRange, fullXRange, maxLabelWidth)
       val lineValues = itemPlacer.getLineValues(this, visibleXRange, fullXRange, maxLabelWidth)
       val shiftExtremeLabels = itemPlacer.getShiftExtremeLabels(this)
+      val labelMaxHeight = (bounds.height - outwardTickLength - lineThickness.half).toInt()
+      var overflowingLastLabelText: CharSequence? = null
+      var overflowingLastLabelCanvasX = 0f
+      var overflowingLastLabelMaxWidth = 0
 
       labelValues.forEachIndexed { index, x ->
         val canvasX =
@@ -201,6 +205,8 @@ protected constructor(
               layoutDirectionMultiplier
         val previousX = labelValues.getOrNull(index - 1) ?: (fullXRange.start.doubled - x)
         val nextX = labelValues.getOrNull(index + 1) ?: (fullXRange.endInclusive.doubled - x)
+        val text =
+          valueFormatter.formatForAxis(context = this, value = x, verticalAxisPosition = null)
         val horizontalPosition =
           when {
             // Only shift an extreme label inward when it actually sits at the chart's x-bound;
@@ -219,19 +225,47 @@ protected constructor(
             else ->
               ceil(min(x - previousX, nextX - x) / ranges.xStep * layerDimensions.xSpacing).toInt()
           }
+        val intrinsicMaxWidth =
+          if (
+            label != null &&
+              shiftExtremeLabels &&
+              index == labelValues.lastIndex &&
+              x < ranges.maxX
+          ) {
+            ceil(
+                label.getWidth(
+                    context = this,
+                    text = text,
+                    maxHeight = labelMaxHeight,
+                    rotationDegrees = labelRotationDegrees,
+                    pad = true,
+                  ) +
+                  1f
+              )
+              .toInt()
+          } else {
+            0
+          }
+        val shouldDrawLastLabelOutsideClip =
+          horizontalPosition == Position.Horizontal.Center && intrinsicMaxWidth > maxWidth
 
-        label?.draw(
-          context = this,
-          text =
-            valueFormatter.formatForAxis(context = this, value = x, verticalAxisPosition = null),
-          x = canvasX,
-          y = textY,
-          horizontalPosition = horizontalPosition,
-          verticalPosition = position.textVerticalPosition,
-          maxWidth = maxWidth,
-          maxHeight = (bounds.height - outwardTickLength - lineThickness.half).toInt(),
-          rotationDegrees = labelRotationDegrees,
-        )
+        if (shouldDrawLastLabelOutsideClip) {
+          overflowingLastLabelText = text
+          overflowingLastLabelCanvasX = canvasX
+          overflowingLastLabelMaxWidth = intrinsicMaxWidth
+        } else {
+          label?.draw(
+            context = this,
+            text = text,
+            x = canvasX,
+            y = textY,
+            horizontalPosition = horizontalPosition,
+            verticalPosition = position.textVerticalPosition,
+            maxWidth = maxWidth,
+            maxHeight = labelMaxHeight,
+            rotationDegrees = labelRotationDegrees,
+          )
+        }
       }
 
       if (lineDrawingOrder == LineDrawingOrder.UnderLayers) {
@@ -247,6 +281,20 @@ protected constructor(
       }
 
       canvas.restore()
+
+      overflowingLastLabelText?.let { text ->
+        label?.draw(
+          context = this,
+          text = text,
+          x = overflowingLastLabelCanvasX,
+          y = textY,
+          horizontalPosition = Position.Horizontal.Center,
+          verticalPosition = position.textVerticalPosition,
+          maxWidth = overflowingLastLabelMaxWidth,
+          maxHeight = labelMaxHeight,
+          rotationDegrees = labelRotationDegrees,
+        )
+      }
 
       if (titlePosition == TitlePosition.End && titleText != null) {
         titleComponent?.drawTitle(this, titleText, lineLeft, lineRight)
